@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Drawer, Form, Input, Select, Button, Checkbox, Steps, message } from 'antd'
+import { Plus } from 'lucide-react'
 import type { HireStatus } from '@/types'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -9,24 +10,18 @@ const ROLES = ['CNA', 'HHA', 'RN', 'LPN', 'Caregiver', 'Office Coordinator', 'Su
 const STATUS_OPTIONS: HireStatus[] = ['Not Started', 'In Progress', 'Completed']
 
 const DOCUMENT_OPTIONS = [
-  'CPR/First Aid Certification',
-  'CNA License',
-  'RN License',
-  'LPN License',
-  'TB Test Results',
-  'Background Check',
-  'HIPAA Training Certificate',
-  'Driver License',
-  'Social Security Card',
-  'I-9 Form',
-  'W-4 Form',
-  'Direct Deposit Form',
-  'Signed Offer Letter',
-  'Employee Handbook Acknowledgment',
-  'Emergency Contact Form',
-  'Drug Screen Results',
-  'Liability Insurance',
-  'COVID Vaccination Record',
+  'Personal Contact Information',
+  'Background Check Authorization',
+  "Valid Driver's License",
+  'Auto Insurance Proof',
+  'Emergency Contact Info',
+  'I-9 Verification',
+  'Direct Deposit',
+  'Withholding Forms (W-4)',
+  'Caregiver Job Description',
+  '2026 Employee Handbook',
+  'Company Signature Acknowledge',
+  'Go Paperless!',
 ]
 
 export interface TrainingItem {
@@ -63,6 +58,7 @@ export interface HireFormValues {
   documents: string[]
 
   trainings: string[]
+  trainingNotes: Record<string, string>
 
   status: HireStatus
 }
@@ -77,6 +73,46 @@ interface HireDrawerProps {
 const HireDrawer = ({ open, onSave, onClose }: HireDrawerProps) => {
   const [form] = Form.useForm<HireFormValues>()
   const [step, setStep] = useState(1)
+  const checkedTrainings: string[] = Form.useWatch('trainings', form) ?? []
+
+  // Admin-extendable option lists
+  const [documentOptions, setDocumentOptions] = useState<string[]>(DOCUMENT_OPTIONS)
+  const [trainingItems, setTrainingItems] = useState<TrainingItem[]>(TRAINING_ITEMS)
+  const [newDocument, setNewDocument] = useState('')
+  const [newTrainingTitle, setNewTrainingTitle] = useState('')
+  const [newTrainingDesc, setNewTrainingDesc] = useState('')
+
+  const handleAddDocument = () => {
+    const name = newDocument.trim()
+    if (!name) return
+    if (documentOptions.some((d) => d.toLowerCase() === name.toLowerCase())) {
+      message.warning('This document already exists.')
+      return
+    }
+    setDocumentOptions((prev) => [...prev, name])
+    setNewDocument('')
+  }
+
+  const handleAddTraining = () => {
+    const title = newTrainingTitle.trim()
+    if (!title) return
+    if (trainingItems.some((t) => t.title.toLowerCase() === title.toLowerCase())) {
+      message.warning('This training already exists.')
+      return
+    }
+    setTrainingItems((prev) => [
+      ...prev,
+      {
+        id: `custom-${Date.now()}`,
+        title,
+        description: newTrainingDesc.trim() || 'Custom training',
+        duration: '—',
+        required: false,
+      },
+    ])
+    setNewTrainingTitle('')
+    setNewTrainingDesc('')
+  }
 
   const reset = () => {
     form.resetFields()
@@ -183,6 +219,7 @@ const HireDrawer = ({ open, onSave, onClose }: HireDrawerProps) => {
         initialValues={{
           documents: [],
           trainings: [],
+          trainingNotes: {},
           status: 'Not Started',
         }}
       >
@@ -221,7 +258,7 @@ const HireDrawer = ({ open, onSave, onClose }: HireDrawerProps) => {
           >
             <Checkbox.Group className="w-full">
               <div className="grid grid-cols-2 gap-2.5">
-                {DOCUMENT_OPTIONS.map((doc) => (
+                {documentOptions.map((doc) => (
                   <div
                     key={doc}
                     className="border border-border-light rounded-[10px] px-3.5 py-2.5 bg-white"
@@ -236,6 +273,26 @@ const HireDrawer = ({ open, onSave, onClose }: HireDrawerProps) => {
               </div>
             </Checkbox.Group>
           </Form.Item>
+
+          {/* Add a new document */}
+          <div className="border border-dashed border-border-light rounded-[10px] px-3.5 py-3 bg-bg-subtle">
+            <div className="text-xs font-semibold text-text-secondary mb-2">Add a new document</div>
+            <div className="flex gap-2">
+              <Input
+                placeholder="e.g. Hepatitis B Waiver"
+                value={newDocument}
+                onChange={(e) => setNewDocument(e.target.value)}
+                onPressEnter={(e) => { e.preventDefault(); handleAddDocument() }}
+              />
+              <Button
+                onClick={handleAddDocument}
+                icon={<Plus size={15} />}
+                style={{ background: '#1b3a5c', borderColor: '#1b3a5c', color: '#fff' }}
+              >
+                Add
+              </Button>
+            </div>
+          </div>
         </div>
 
         {/* Step 4 — Training */}
@@ -245,7 +302,7 @@ const HireDrawer = ({ open, onSave, onClose }: HireDrawerProps) => {
             name="trainings"
             rules={[{
               validator: (_, value: string[] = []) => {
-                const missing = TRAINING_ITEMS
+                const missing = trainingItems
                   .filter((t) => t.required && !value.includes(t.id))
                   .map((t) => t.title)
                 if (missing.length) {
@@ -256,7 +313,7 @@ const HireDrawer = ({ open, onSave, onClose }: HireDrawerProps) => {
             }]}
           >
             <Checkbox.Group className="w-full flex flex-col gap-3">
-              {TRAINING_ITEMS.map((t) => (
+              {trainingItems.map((t) => (
                 <div
                   key={t.id}
                   className="border border-border-light rounded-[10px] px-3.5 py-3 bg-white"
@@ -272,10 +329,50 @@ const HireDrawer = ({ open, onSave, onClose }: HireDrawerProps) => {
                       </div>
                     </div>
                   </Checkbox>
+
+                  {checkedTrainings.includes(t.id) && (
+                    <Form.Item
+                      name={['trainingNotes', t.id]}
+                      className="mt-3 mb-0"
+                    >
+                      <Input.TextArea
+                        rows={2}
+                        placeholder={`Notes about ${t.title}...`}
+                      />
+                    </Form.Item>
+                  )}
                 </div>
               ))}
             </Checkbox.Group>
           </Form.Item>
+
+          {/* Add a new training */}
+          <div className="border border-dashed border-border-light rounded-[10px] px-3.5 py-3 bg-bg-subtle">
+            <div className="text-xs font-semibold text-text-secondary mb-2">Add a new training</div>
+            <div className="flex flex-col gap-2">
+              <Input
+                placeholder="Training title — e.g. Dementia Care Basics"
+                value={newTrainingTitle}
+                onChange={(e) => setNewTrainingTitle(e.target.value)}
+                onPressEnter={(e) => { e.preventDefault(); handleAddTraining() }}
+              />
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Short description (optional)"
+                  value={newTrainingDesc}
+                  onChange={(e) => setNewTrainingDesc(e.target.value)}
+                  onPressEnter={(e) => { e.preventDefault(); handleAddTraining() }}
+                />
+                <Button
+                  onClick={handleAddTraining}
+                  icon={<Plus size={15} />}
+                  style={{ background: '#1b3a5c', borderColor: '#1b3a5c', color: '#fff' }}
+                >
+                  Add
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Step 5 — Review */}
